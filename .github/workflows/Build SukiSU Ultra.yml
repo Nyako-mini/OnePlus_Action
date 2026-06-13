@@ -147,6 +147,15 @@ on:
           - 'On'
           - 'Off'
         default: 'Off'
+        
+      sysfs:
+        description: "是否启用sysfs补丁"
+        required: true
+        type: choice
+        options:
+          - 'On'
+          - 'Off'
+        default: 'Off'
          
 jobs:
   build:
@@ -227,7 +236,6 @@ jobs:
           else
             echo "⚠️ 未找到ccache命令，跳过初始化"
           fi
-          # 显示缓存统计
           ccache -s
           echo "✅ ccache初始化流程完成"
 
@@ -255,7 +263,6 @@ jobs:
           rm kernel_platform/msm-kernel/android/abi_gki_protected_exports_* || echo "No protected exports!"
 
           echo "🔧 正在配置内核版本信息..."
-          # Remove -dirty in kernel version
           sed -i 's/ -dirty//g' kernel_platform/common/scripts/setlocalversion
           sed -i 's/ -dirty//g' kernel_platform/msm-kernel/scripts/setlocalversion
           sed -i 's/ -dirty//g' kernel_platform/external/dtc/scripts/setlocalversion
@@ -288,8 +295,6 @@ jobs:
       - name: "⚡ Setup SukiSU Ultra | 配置 SukiSU Ultra"
         run: |
           cd kernel_workspace/kernel_platform
-
-          # 下载并执行设置脚本
           echo "🛠️ 正在设置SukiSU Ultra..."
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/setup.sh" | bash -s builtin
           
@@ -336,7 +341,6 @@ jobs:
           fi
           
           if [ "${{ github.event.inputs.lz4kd }}" == "On" ]; then
-            # Copy lz4k from ShirkNeko
             cp -r ../SukiSU_patch/other/zram/lz4k/include/linux/* ./common/include/linux
             cp -r ../SukiSU_patch/other/zram/lz4k/lib/* ./common/lib
             cp -r ../SukiSU_patch/other/zram/lz4k/crypto/* ./common/crypto
@@ -378,6 +382,42 @@ jobs:
           fi
 
           echo "✅ 所有补丁应用完成"
+
+      - name: "🔧 Apply sysfs patches | 应用sysfs补丁"
+        if: ${{ github.event.inputs.sysfs == 'On' }}
+        run: |
+          cd kernel_workspace
+          if ! git clone https://github.com/Nyako-mini/sysfs.git; then
+            echo "⚠️ 警告: sysfs仓库克隆失败"
+            exit 0
+          fi
+          mkdir -p kernel_platform/common/kernel
+          if ! cp -r sysfs/* kernel_platform/common/kernel/ 2>/dev/null; then
+            echo "⚠️ 警告: 复制sysfs文件失败"
+          fi
+          KERNEL_MAKEFILE="kernel_platform/common/kernel/Makefile"
+          if [ ! -f "$KERNEL_MAKEFILE" ]; then
+            touch "$KERNEL_MAKEFILE"
+          fi
+          echo "" >> "$KERNEL_MAKEFILE"
+          echo "# Added by sysfs patch" >> "$KERNEL_MAKEFILE"
+          echo "obj-y += ufsid_sysfs.o" >> "$KERNEL_MAKEFILE"
+          echo "obj-y += cpuinfo.o" >> "$KERNEL_MAKEFILE"
+          echo "obj-y += batteryinfo.o" >> "$KERNEL_MAKEFILE"
+          CORE_C="kernel_platform/common/drivers/base/core.c"
+          if [ -f "$CORE_C" ]; then
+            if ! sed -i '/struct kset \*devices_kset;/a EXPORT_SYMBOL_GPL(devices_kset);' "$CORE_C" 2>/dev/null; then
+              echo "⚠️ 警告: 修改core.c失败，可能未找到devices_kset声明"
+            else
+              echo "✅ sysfs补丁应用成功"
+            fi
+          else
+            echo "⚠️ 警告: 未找到 $CORE_C 文件"
+            find kernel_platform -name "core.c" -path "*/drivers/base/*" 2>/dev/null | while read core_file; do
+              echo "尝试在 $core_file 中添加导出符号..."
+              sed -i '/struct kset \*devices_kset;/a EXPORT_SYMBOL_GPL(devices_kset);' "$core_file" 2>/dev/null && echo "✅ 已修改 $core_file"
+            done
+          fi
 
       - name: "⚙️ Apply SCHED Patch | 应用风驰补丁"
         if: ${{ github.event.inputs.KERNEL_VERSION == '6.6' }}
@@ -473,7 +513,6 @@ jobs:
           fi
 
           if [ "${{ github.event.inputs.proxy }}" == "On" ]; then
-            # Add proxy config
             echo "📦 加入代理优化..."
             echo "CONFIG_BPF_STREAM_PARSER=y" >> ./common/arch/arm64/configs/gki_defconfig
             echo "CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y" >> ./common/arch/arm64/configs/gki_defconfig
@@ -509,7 +548,6 @@ jobs:
             grep -q '^CONFIG_LTO_CLANG_THIN=y' "$DEFCONFIG" || echo 'CONFIG_LTO_CLANG_THIN=y' >> "$DEFCONFIG"
           fi
 
-          # 跳过将uapi标准头安装到 usr/include 目录的不必要操作，节省编译时间
           echo "CONFIG_HEADERS_INSTALL=n" >> ./common/arch/arm64/configs/gki_defconfig
 
           echo "⚡ Remove check_defconfig"
@@ -625,30 +663,3 @@ jobs:
         with:
           name: ${{ github.event.inputs.FEIL }}_zram.ko
           path: ./kernel_workspace/kernel_platform/common/out/drivers/block/zram/zram.ko
-
-      # - name: "🤖 Get bot script | 获取 bot 脚本"
-        # uses: actions/checkout@v6
-        # with:
-          # path: bot
-
-      # - name: "📤 Upload to telegram | 上传至Telegram群组"
-        # run: |
-          # if [ ! -z "${{ secrets.BOT_TOKEN }}" ]; then
-            # echo "📤 正在上传到Telegram..."
-            # cd AnyKernel3
-            # zip -q -r "../${{ steps.set_name.outputs.ARTIFACT_NAME }}.zip" ./*
-            # cd ..
-            # pip3 install telethon
-            # python3 ./bot/script/buildbot.py "./${{ steps.set_name.outputs.ARTIFACT_NAME }}.zip"
-            # echo "✅ 文件已上传到Telegram"
-          # fi
-        # env:
-          # CHATID: ${{secrets.CHATID}}
-          # BOT_TOKEN: ${{secrets.BOT_TOKEN}}
-          # MESSAGE_THREAD_ID: ${{secrets.MESSAGE_THREAD_ID}}
-          # KernelVer: ${{ github.event.inputs.ANDROID_VERSION}}-${{ github.event.inputs.KERNEL_VERSION }}
-          # DEVICE: ${{ github.event.inputs.FEIL }}
-          # KPM: ${{ github.event.inputs.KPM }}
-          # LZ4KD: ${{ github.event.inputs.lz4kd }}
-          # BBR: ${{ github.event.inputs.bbr }}
-          # KSU_VAR: "SukiSU"
