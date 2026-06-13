@@ -486,10 +486,7 @@ jobs:
           echo "⚙️ 正在配置内核编译选项..."
           
           echo "📦 启用 KSU 支持..."
-          curl -L -o resukisu_setup.bin https://github.com/Xiaomichael/OnePlus-Actions/raw/Build/script/resukisu_setup.bin
-          chmod +x resukisu_setup.bin
-          ./resukisu_setup.bin
-          rm -rf ./resukisu_setup.bin
+          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
           
           if [ "${{ github.event.inputs.KPM }}" == "On" ]; then
             echo "📦 启用 KPM..."
