@@ -147,6 +147,15 @@ on:
           - 'On'
           - 'Off'
         default: 'Off'
+        
+      sysfs:
+        description: "是否启用sysfs补丁"
+        required: true
+        type: choice
+        options:
+          - 'On'
+          - 'Off'
+        default: 'Off'
          
 jobs:
   build:
@@ -264,11 +273,11 @@ jobs:
           sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' kernel_platform/external/dtc/scripts/setlocalversion
           
           if [ "${{ github.event.inputs.KERNEL_VERSION }}" != "6.6" ]; then
-            sed -i '$s|echo "\$res"|echo "-${{ github.event.inputs.ANDROID_VERSION }}-oki-xiaoxiaow"|' kernel_platform/common/scripts/setlocalversion            
-            sed -i '$s|echo "\$res"|echo "-${{ github.event.inputs.ANDROID_VERSION }}-oki-xiaoxiaow"|' kernel_platform/msm-kernel/scripts/setlocalversion
-            sed -i '$s|echo "\$res"|echo "-${{ github.event.inputs.ANDROID_VERSION }}-oki-xiaoxiaow"|' kernel_platform/external/dtc/scripts/setlocalversion
+            sed -i '$s|echo "\$res"|echo "-${{ github.event.inputs.ANDROID_VERSION }}-oki-AR-26710"|' kernel_platform/common/scripts/setlocalversion            
+            sed -i '$s|echo "\$res"|echo "-${{ github.event.inputs.ANDROID_VERSION }}-oki-AR-26710"|' kernel_platform/msm-kernel/scripts/setlocalversion
+            sed -i '$s|echo "\$res"|echo "-${{ github.event.inputs.ANDROID_VERSION }}-oki-AR-26710"|' kernel_platform/external/dtc/scripts/setlocalversion
           else
-            ESCAPED_SUFFIX=$(printf '%s\n' "-${{ github.event.inputs.ANDROID_VERSION }}-oki-xiaoxiaow" | sed 's:[\/&]:\\&:g')
+            ESCAPED_SUFFIX=$(printf '%s\n' "-${{ github.event.inputs.ANDROID_VERSION }}-oki-AR-26710" | sed 's:[\/&]:\\&:g')
             sudo sed -i "s/-4k/$ESCAPED_SUFFIX/g" kernel_platform/common/arch/arm64/configs/gki_defconfig
             sed -i 's/${scm_version}//' kernel_platform/common/scripts/setlocalversion
             sed -i 's/${scm_version}//' kernel_platform/msm-kernel/scripts/setlocalversion
@@ -374,6 +383,72 @@ jobs:
           fi
 
           echo "✅ 所有补丁应用完成"
+
+      - name: "🔧 Apply sysfs patches | 应用sysfs补丁"
+        if: ${{ github.event.inputs.sysfs == 'On' }}
+        run: |
+          cd kernel_workspace
+          echo "📥 克隆 sysfs 仓库..."
+          if ! git clone https://github.com/Nyako-mini/sysfs.git; then
+            echo "⚠️ 警告: sysfs仓库克隆失败"
+            exit 0
+          fi
+          echo "✅ sysfs 仓库克隆成功"
+          
+          echo "📁 复制 sysfs 文件到 kernel 目录..."
+          mkdir -p kernel_platform/common/kernel
+          if ! cp -r sysfs/* kernel_platform/common/kernel/ 2>/dev/null; then
+            echo "⚠️ 警告: 复制sysfs文件失败"
+          else
+            echo "✅ sysfs 文件复制成功"
+          fi
+          
+          echo "📝 修改 kernel/Makefile..."
+          KERNEL_MAKEFILE="kernel_platform/common/kernel/Makefile"
+          if [ ! -f "$KERNEL_MAKEFILE" ]; then
+            touch "$KERNEL_MAKEFILE"
+            echo "📝 创建新的 Makefile"
+          fi
+          echo "" >> "$KERNEL_MAKEFILE"
+          echo "# Added by sysfs patch" >> "$KERNEL_MAKEFILE"
+          echo "obj-y += ufsid_sysfs.o" >> "$KERNEL_MAKEFILE"
+          echo "obj-y += cpuinfo.o" >> "$KERNEL_MAKEFILE"
+          echo "obj-y += batteryinfo.o" >> "$KERNEL_MAKEFILE"
+          echo "✅ kernel/Makefile 修改完成"
+          
+          echo "📝 修改 drivers/base/core.c 添加 EXPORT_SYMBOL_GPL..."
+          CORE_C="kernel_platform/common/drivers/base/core.c"
+          if [ -f "$CORE_C" ]; then
+            if grep -q "EXPORT_SYMBOL_GPL(devices_kset)" "$CORE_C"; then
+              echo "✅ EXPORT_SYMBOL_GPL(devices_kset) 已存在，跳过修改"
+            else
+              if sed -i '/struct kset \*devices_kset;/a EXPORT_SYMBOL_GPL(devices_kset);' "$CORE_C" 2>/dev/null; then
+                echo "✅ 成功在 $CORE_C 中添加 EXPORT_SYMBOL_GPL(devices_kset)"
+              else
+                echo "⚠️ 警告: 修改 $CORE_C 失败"
+              fi
+            fi
+          else
+            echo "⚠️ 警告: 未找到 $CORE_C 文件"
+            echo "🔍 正在搜索其他位置的 core.c..."
+            found=false
+            find kernel_platform -name "core.c" -path "*/drivers/base/*" 2>/dev/null | while read core_file; do
+              echo "🔍 找到: $core_file"
+              if grep -q "EXPORT_SYMBOL_GPL(devices_kset)" "$core_file"; then
+                echo "✅ $core_file 中已存在 EXPORT_SYMBOL_GPL(devices_kset)"
+              else
+                if sed -i '/struct kset \*devices_kset;/a EXPORT_SYMBOL_GPL(devices_kset);' "$core_file" 2>/dev/null; then
+                  echo "✅ 成功在 $core_file 中添加 EXPORT_SYMBOL_GPL(devices_kset)"
+                  found=true
+                fi
+              fi
+            done
+            if [ "$found" = false ]; then
+              echo "⚠️ 警告: 未找到 devices_kset 声明，无法添加 EXPORT_SYMBOL_GPL"
+            fi
+          fi
+          
+          echo "🎉 sysfs 补丁应用完成"
 
       - name: "⚙️ Apply SCHED Patch | 应用风驰补丁"
         if: ${{ github.event.inputs.KERNEL_VERSION == '6.6' }}
@@ -517,8 +592,8 @@ jobs:
       - name: "🔨 Build Kernel | 编译内核"
         run: |
           echo "🏗️ 开始内核编译..."
-          export KBUILD_BUILD_USER="xiaoxiaow"
-          export KBUILD_BUILD_HOST="xiaoxiaow_build"
+          export KBUILD_BUILD_USER="AR-26710"
+          export KBUILD_BUILD_HOST="AR-26710_build"
 
           if [ "${{ github.event.inputs.KERNEL_VERSION }}" == "6.1" ]; then
             export KBUILD_BUILD_TIMESTAMP="Tue Mar 10 03:53:33 UTC 2026"
