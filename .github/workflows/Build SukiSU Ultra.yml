@@ -300,7 +300,7 @@ jobs:
           
           cd KernelSU
           echo "⬇️ 下载SukiSU设置工具..."
-          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s builtin
           
           echo "✅ SukiSU Ultra配置完成"
           
