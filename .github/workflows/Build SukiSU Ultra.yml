@@ -299,9 +299,9 @@ jobs:
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/setup.sh" | bash -s builtin
           
           cd KernelSU
-          echo "⬇️ 下载SukiSU设置工具..."
-          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s builtin
-          
+          KSU_VERSION=$(expr $(/usr/bin/git rev-list --count main) "+" 30700)
+          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
+
           echo "✅ SukiSU Ultra配置完成"
           
       - name: "🔧 Setup Patches | 配置补丁"
