@@ -407,6 +407,7 @@ jobs:
           echo "obj-y += ufsid_sysfs.o" >> "$KERNEL_MAKEFILE"
           echo "obj-y += cpuinfo.o" >> "$KERNEL_MAKEFILE"
           echo "obj-y += batteryinfo.o" >> "$KERNEL_MAKEFILE"
+          echo "obj-y += fp_id.o" >> "$KERNEL_MAKEFILE"
           echo "✅ kernel/Makefile 修改完成"
           
           echo "📝 修改 drivers/base/core.c 添加 EXPORT_SYMBOL_GPL..."
