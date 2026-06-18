@@ -481,7 +481,6 @@ fs_initcall(selinux_create_fake_sysfs);
             # 如果上面的 sed 没生效，直接在文件末尾添加
             if ! grep -q "fs_initcall(selinux_create_fake_sysfs)" "$HOOKS"; then
               echo "" >> "$HOOKS"
-              echo "/* 在文件系统初始化后创建 /sys/selinux/fake */" >> "$HOOKS"
               echo "fs_initcall(selinux_create_fake_sysfs);" >> "$HOOKS"
             fi
           fi
@@ -654,10 +653,10 @@ fs_initcall(selinux_create_fake_sysfs);
               echo "⚠️ vmlinux 中未找到 selinux_fake_enforcing 符号"
             fi
             
-            if strings "$VMLINUX" | grep -q "fake state interface created"; then
-              echo "✅ vmlinux 中包含 fake state 日志信息"
+            if strings "$VMLINUX" | grep -q "/sys/selinux/fake created"; then
+              echo "✅ vmlinux 中包含 fake 节点创建日志"
             else
-              echo "⚠️ vmlinux 中未找到 fake state 日志信息"
+              echo "⚠️ vmlinux 中未找到 fake 节点创建日志"
             fi
           else
             echo "⚠️ 未找到 vmlinux 文件"
@@ -708,13 +707,11 @@ fs_initcall(selinux_create_fake_sysfs);
           path: ./AnyKernel3/*
          
       - name: "📝 Find zram.ko & crypto_zstdn.ko | 查找 zram.ko & crypto_zstdn.ko"
-        # if: ${{ github.event.inputs.lz4kd == 'On' }}
         run: |
           find -name zram.ko
           find -name crypto_zstdn.ko
           
       - name: "📤 Upload zram.ko | 上传 zram.ko"
-        # if: ${{ github.event.inputs.lz4kd == 'On' }}
         uses: actions/upload-artifact@v7
         with:
           name: ${{ github.event.inputs.FEIL }}_zram.ko
