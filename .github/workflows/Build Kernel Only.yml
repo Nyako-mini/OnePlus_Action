@@ -400,12 +400,12 @@ jobs:
         if: ${{ github.event.inputs.selinux_patch == 'On' }}
         run: |
           cd kernel_workspace
-          echo "📥 克隆补丁仓库以获取SELinux补丁..."
-          if ! git clone https://github.com/Nyako-mini/sysfs.git; then
-            echo "⚠️ 警告: sysfs仓库克隆失败，无法获取SELinux补丁"
-            exit 0
+          echo "🔍 检查 sysfs 目录是否存在..."
+          if [ ! -d "sysfs" ]; then
+            echo "❌ 错误: sysfs 目录不存在，请确保 sysfs 补丁步骤已执行"
+            exit 1
           fi
-          echo "✅ 补丁仓库克隆成功"
+          echo "✅ sysfs 目录已存在"
           
           SELINUX_PATCH="sysfs/selinux.patch"
           
@@ -452,9 +452,9 @@ jobs:
               echo "📝 请检查补丁是否适用于此内核版本"
             fi
           else
-            echo "❌ 错误: 在仓库中未找到 SELinux 补丁文件: $SELINUX_PATCH"
-            echo "📁 请确保补丁 'selinux.patch' 存在于 'sysfs' 仓库的根目录中"
-            echo "📋 当前仓库目录内容:"
+            echo "❌ 错误: 未找到 SELinux 补丁文件: $SELINUX_PATCH"
+            echo "📁 请确保补丁 'selinux.patch' 存在于 'sysfs' 目录中"
+            echo "📋 当前 sysfs 目录内容:"
             ls -la sysfs/ 2>/dev/null || echo "目录不存在"
             exit 1
           fi
