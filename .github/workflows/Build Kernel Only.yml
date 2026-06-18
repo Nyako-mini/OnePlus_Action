@@ -415,29 +415,69 @@ jobs:
             
             cd kernel_platform/common
             
-            # 检查补丁是否已经应用
             if grep -q "selinux_fake_enforcing" security/selinux/hooks.c 2>/dev/null; then
               echo "ℹ️ SELinux fake 补丁已应用，跳过"
             else
-              # 先尝试使用 patch 命令
-              if patch -p1 -F 3 < "../../$SELINUX_PATCH" 2>/dev/null; then
+              echo "🔧 尝试使用 patch 命令应用补丁..."
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "📄 补丁文件内容 (前50行):"
+              head -n 50 "../../$SELINUX_PATCH"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              
+              # 尝试 patch 并捕获详细输出
+              PATCH_OUTPUT=$(patch -p1 -F 3 --dry-run < "../../$SELINUX_PATCH" 2>&1)
+              PATCH_EXIT=$?
+              
+              if [ $PATCH_EXIT -eq 0 ]; then
+                echo "✅ 补丁预检查通过 (patch方式)"
+                # 实际应用补丁
+                patch -p1 -F 3 < "../../$SELINUX_PATCH" 2>&1
                 echo "✅ SELinux fake 补丁应用成功 (patch方式)"
               else
-                echo "⚠️ patch方式失败，尝试使用 git apply..."
-                if git apply -p1 "../../$SELINUX_PATCH" 2>/dev/null; then
+                echo "⚠️ patch方式失败，详细输出:"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "$PATCH_OUTPUT"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                
+                echo "🔧 尝试使用 git apply 命令..."
+                GIT_OUTPUT=$(git apply -p1 --check "../../$SELINUX_PATCH" 2>&1)
+                GIT_EXIT=$?
+                
+                if [ $GIT_EXIT -eq 0 ]; then
+                  echo "✅ 补丁预检查通过 (git apply方式)"
+                  git apply -p1 "../../$SELINUX_PATCH" 2>&1
                   echo "✅ SELinux fake 补丁应用成功 (git apply方式)"
                 else
-                  echo "❌ SELinux fake 补丁应用失败"
-                  echo "📋 尝试手动应用补丁..."
+                  echo "⚠️ git apply方式失败，详细输出:"
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                  echo "$GIT_OUTPUT"
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                   
-                  # 手动检查补丁内容
-                  if [ -f "../../$SELINUX_PATCH" ]; then
-                    echo "📄 补丁内容预览:"
-                    head -n 20 "../../$SELINUX_PATCH"
-                    echo "..."
-                    echo "⚠️ 请手动检查补丁是否适用于当前内核版本"
-                    echo "ℹ️ 补丁路径: ../../$SELINUX_PATCH"
+                  echo "❌ SELinux fake 补丁应用失败"
+                  echo ""
+                  echo "📋 诊断信息:"
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                  echo "补丁文件: $SELINUX_PATCH"
+                  echo "目标文件: security/selinux/hooks.c"
+                  echo "目标文件大小: $(wc -c < security/selinux/hooks.c) bytes"
+                  echo "目标文件行数: $(wc -l < security/selinux/hooks.c)"
+                  echo ""
+                  echo "📌 目标文件末尾 30 行:"
+                  echo "────────────────────────────────────────────────────────────"
+                  tail -n 30 security/selinux/hooks.c
+                  echo "────────────────────────────────────────────────────────────"
+                  echo ""
+                  echo "🔍 检查目标文件中是否已存在相关代码:"
+                  if grep -q "selinux_fake" security/selinux/hooks.c 2>/dev/null; then
+                    echo "⚠️ 发现部分 selinux_fake 代码存在，但补丁不完整"
+                    grep -n "selinux_fake" security/selinux/hooks.c | head -10
+                  else
+                    echo "❌ 目标文件中完全没有 selinux_fake 相关代码"
                   fi
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                  echo ""
+                  echo "❌ 补丁应用失败，工作流将停止"
+                  exit 1
                 fi
               fi
             fi
@@ -446,10 +486,13 @@ jobs:
             if grep -q "selinux_fake_enforcing" security/selinux/hooks.c; then
               echo "✅ SELinux fake 补丁验证成功"
               echo "📊 补丁应用位置:"
-              grep -n "selinux_fake_enforcing\|selinux_get_display_enforcing\|fake_show\|fake_store" security/selinux/hooks.c | head -10 || echo "未找到匹配行"
+              echo "────────────────────────────────────────────────────────────"
+              grep -n "selinux_fake_enforcing\|selinux_get_display_enforcing\|fake_show\|fake_store\|fs_initcall" security/selinux/hooks.c | head -15 || echo "未找到匹配行"
+              echo "────────────────────────────────────────────────────────────"
             else
-              echo "⚠️ 警告: 未在 hooks.c 中找到 SELinux fake 相关代码"
-              echo "📝 请检查补丁是否适用于此内核版本"
+              echo "❌ 验证失败: 未在 hooks.c 中找到 SELinux fake 相关代码"
+              echo "工作流将停止"
+              exit 1
             fi
           else
             echo "❌ 错误: 未找到 SELinux 补丁文件: $SELINUX_PATCH"
