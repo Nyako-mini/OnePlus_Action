@@ -461,6 +461,39 @@ jobs:
           
           echo "🎉 SELinux 补丁处理完成"
 
+      - name: "🔧 Add fs_initcall for SELinux fake"
+        if: ${{ github.event.inputs.selinux_patch == 'On' }}
+        run: |
+          cd kernel_workspace/kernel_platform/common
+          HOOKS="security/selinux/hooks.c"
+          
+          # 检查 fs_initcall 是否已存在
+          if grep -q "fs_initcall(selinux_create_fake_sysfs)" "$HOOKS"; then
+            echo "✅ fs_initcall 已存在"
+          else
+            # 在 selinux_complete_init 函数后面添加
+            sed -i '/^void selinux_complete_init(void)/,/^}/ {
+              /^}/ a\
+\
+fs_initcall(selinux_create_fake_sysfs);
+            }' "$HOOKS"
+            
+            # 如果上面的 sed 没生效，直接在文件末尾添加
+            if ! grep -q "fs_initcall(selinux_create_fake_sysfs)" "$HOOKS"; then
+              echo "" >> "$HOOKS"
+              echo "/* 在文件系统初始化后创建 /sys/selinux/fake */" >> "$HOOKS"
+              echo "fs_initcall(selinux_create_fake_sysfs);" >> "$HOOKS"
+            fi
+          fi
+          
+          # 验证
+          if grep -q "fs_initcall(selinux_create_fake_sysfs)" "$HOOKS"; then
+            echo "✅ fs_initcall 添加成功"
+          else
+            echo "❌ fs_initcall 添加失败"
+            exit 1
+          fi
+
       - name: "⚙️ Apply SCHED Patch | 应用风驰补丁"
         if: ${{ github.event.inputs.KERNEL_VERSION == '6.6' }}
         run: |
