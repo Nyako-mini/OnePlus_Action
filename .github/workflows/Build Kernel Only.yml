@@ -605,6 +605,36 @@ jobs:
           
           ccache -s
           echo "✅ 内核编译完成"
+
+      - name: "🔍 Verify SELinux patch in compiled kernel"
+        if: ${{ github.event.inputs.selinux_patch == 'On' }}
+        run: |
+          echo "🔍 验证 SELinux 补丁是否被编译进内核..."
+          
+          # 检查 vmlinux 中是否包含相关符号
+          VMLINUX=$(find ./kernel_workspace/kernel_platform/common/out -name "vmlinux" | head -n 1)
+          if [ -f "$VMLINUX" ]; then
+            echo "📄 检查 vmlinux 中的 SELinux fake 符号..."
+            if strings "$VMLINUX" | grep -q "selinux_fake_enforcing"; then
+              echo "✅ vmlinux 中包含 selinux_fake_enforcing 符号"
+            else
+              echo "⚠️ vmlinux 中未找到 selinux_fake_enforcing 符号"
+            fi
+            
+            if strings "$VMLINUX" | grep -q "fake state interface created"; then
+              echo "✅ vmlinux 中包含 fake state 日志信息"
+            else
+              echo "⚠️ vmlinux 中未找到 fake state 日志信息"
+            fi
+          else
+            echo "⚠️ 未找到 vmlinux 文件"
+          fi
+          
+          # 检查编译日志
+          echo "📋 检查编译日志中是否有相关警告..."
+          if [ -f "./kernel_workspace/kernel_platform/common/out/build.log" ]; then
+            grep -i "selinux.*fake\|selinux_fake" ./kernel_workspace/kernel_platform/common/out/build.log || echo "编译日志中无相关输出"
+          fi
           
       - name: "📦 Package Kernel | 打包内核"
         run: |
