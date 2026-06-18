@@ -250,11 +250,11 @@ jobs:
           sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' kernel_platform/external/dtc/scripts/setlocalversion
 
           if [ "${{ github.event.inputs.KERNEL_VERSION }}" != "6.6" ]; then
-            sed -i '$s|echo "\$res"|echo "-${{ github.event.inputs.ANDROID_VERSION }}-oki-Cyrene"|' kernel_platform/common/scripts/setlocalversion            
-            sed -i '$s|echo "\$res"|echo "-${{ github.event.inputs.ANDROID_VERSION }}-oki-Cyrene"|' kernel_platform/msm-kernel/scripts/setlocalversion
-            sed -i '$s|echo "\$res"|echo "-${{ github.event.inputs.ANDROID_VERSION }}-oki-Cyrene"|' kernel_platform/external/dtc/scripts/setlocalversion
+            sed -i '$s|echo "\$res"|echo "-${{ github.event.inputs.ANDROID_VERSION }}-oki-AR26710"|' kernel_platform/common/scripts/setlocalversion            
+            sed -i '$s|echo "\$res"|echo "-${{ github.event.inputs.ANDROID_VERSION }}-oki-AR26710"|' kernel_platform/msm-kernel/scripts/setlocalversion
+            sed -i '$s|echo "\$res"|echo "-${{ github.event.inputs.ANDROID_VERSION }}-oki-AR26710"|' kernel_platform/external/dtc/scripts/setlocalversion
           else
-            ESCAPED_SUFFIX=$(printf '%s\n' "-${{ github.event.inputs.ANDROID_VERSION }}-oki-Cyrene" | sed 's:[\/&]:\\&:g')
+            ESCAPED_SUFFIX=$(printf '%s\n' "-${{ github.event.inputs.ANDROID_VERSION }}-oki-AR26710" | sed 's:[\/&]:\\&:g')
             sudo sed -i "s/-4k/$ESCAPED_SUFFIX/g" kernel_platform/common/arch/arm64/configs/gki_defconfig
             sed -i 's/${scm_version}//' kernel_platform/common/scripts/setlocalversion
             sed -i 's/${scm_version}//' kernel_platform/msm-kernel/scripts/setlocalversion
@@ -570,8 +570,8 @@ jobs:
       - name: "🔨 Build Kernel | 编译内核"
         run: |
           echo "🏗️ 开始内核编译..."
-          export KBUILD_BUILD_USER="Cyrene"
-          export KBUILD_BUILD_HOST="Cyrene_build"
+          export KBUILD_BUILD_USER="AR26710"
+          export KBUILD_BUILD_HOST="AR26710_build"
 
           if [ "${{ github.event.inputs.KERNEL_VERSION }}" == "6.1" ]; then
             export KBUILD_BUILD_TIMESTAMP="Tue Mar 10 03:53:33 UTC 2026"
