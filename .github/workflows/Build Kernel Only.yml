@@ -407,98 +407,55 @@ jobs:
           fi
           echo "✅ sysfs 目录已存在"
           
-          SELINUX_PATCH="sysfs/selinux.patch"
+          # 检查 sysfs 目录下是否有 hooks.c 文件
+          HOOKS_SOURCE="sysfs/hooks.c"
+          HOOKS_TARGET="kernel_platform/common/security/selinux/hooks.c"
           
-          if [ -f "$SELINUX_PATCH" ]; then
-            echo "✅ 找到 SELinux 补丁: $SELINUX_PATCH"
-            echo "📝 应用 SELinux fake 补丁到 hooks.c..."
+          if [ -f "$HOOKS_SOURCE" ]; then
+            echo "✅ 找到 hooks.c 源文件: $HOOKS_SOURCE"
             
-            cd kernel_platform/common
-            
-            if grep -q "selinux_fake_enforcing" security/selinux/hooks.c 2>/dev/null; then
-              echo "ℹ️ SELinux fake 补丁已应用，跳过"
-            else
-              echo "🔧 尝试使用 patch 命令应用补丁..."
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo "📄 补丁文件内容 (前50行):"
-              head -n 50 "../../$SELINUX_PATCH"
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              
-              # 尝试 patch 并捕获详细输出
-              PATCH_OUTPUT=$(patch -p1 -F 3 --dry-run < "../../$SELINUX_PATCH" 2>&1)
-              PATCH_EXIT=$?
-              
-              if [ $PATCH_EXIT -eq 0 ]; then
-                echo "✅ 补丁预检查通过 (patch方式)"
-                # 实际应用补丁
-                patch -p1 -F 3 < "../../$SELINUX_PATCH" 2>&1
-                echo "✅ SELinux fake 补丁应用成功 (patch方式)"
-              else
-                echo "⚠️ patch方式失败，详细输出:"
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo "$PATCH_OUTPUT"
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                
-                echo "🔧 尝试使用 git apply 命令..."
-                GIT_OUTPUT=$(git apply -p1 --check "../../$SELINUX_PATCH" 2>&1)
-                GIT_EXIT=$?
-                
-                if [ $GIT_EXIT -eq 0 ]; then
-                  echo "✅ 补丁预检查通过 (git apply方式)"
-                  git apply -p1 "../../$SELINUX_PATCH" 2>&1
-                  echo "✅ SELinux fake 补丁应用成功 (git apply方式)"
-                else
-                  echo "⚠️ git apply方式失败，详细输出:"
-                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                  echo "$GIT_OUTPUT"
-                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                  
-                  echo "❌ SELinux fake 补丁应用失败"
-                  echo ""
-                  echo "📋 诊断信息:"
-                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                  echo "补丁文件: $SELINUX_PATCH"
-                  echo "目标文件: security/selinux/hooks.c"
-                  echo "目标文件大小: $(wc -c < security/selinux/hooks.c) bytes"
-                  echo "目标文件行数: $(wc -l < security/selinux/hooks.c)"
-                  echo ""
-                  echo "📌 目标文件末尾 30 行:"
-                  echo "────────────────────────────────────────────────────────────"
-                  tail -n 30 security/selinux/hooks.c
-                  echo "────────────────────────────────────────────────────────────"
-                  echo ""
-                  echo "🔍 检查目标文件中是否已存在相关代码:"
-                  if grep -q "selinux_fake" security/selinux/hooks.c 2>/dev/null; then
-                    echo "⚠️ 发现部分 selinux_fake 代码存在，但补丁不完整"
-                    grep -n "selinux_fake" security/selinux/hooks.c | head -10
-                  else
-                    echo "❌ 目标文件中完全没有 selinux_fake 相关代码"
-                  fi
-                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                  echo ""
-                  echo "❌ 补丁应用失败，工作流将停止"
-                  exit 1
-                fi
-              fi
+            # 检查目标目录是否存在
+            TARGET_DIR=$(dirname "$HOOKS_TARGET")
+            if [ ! -d "$TARGET_DIR" ]; then
+              echo "❌ 错误: 目标目录不存在: $TARGET_DIR"
+              exit 1
             fi
             
-            echo "🔍 验证补丁应用结果..."
-            if grep -q "selinux_fake_enforcing" security/selinux/hooks.c; then
-              echo "✅ SELinux fake 补丁验证成功"
-              echo "📊 补丁应用位置:"
-              echo "────────────────────────────────────────────────────────────"
-              grep -n "selinux_fake_enforcing\|selinux_get_display_enforcing\|fake_show\|fake_store\|fs_initcall" security/selinux/hooks.c | head -15 || echo "未找到匹配行"
-              echo "────────────────────────────────────────────────────────────"
+            # 备份原始 hooks.c
+            if [ -f "$HOOKS_TARGET" ]; then
+              echo "📦 备份原始 hooks.c 为 hooks.c.bak"
+              cp "$HOOKS_TARGET" "$HOOKS_TARGET.bak"
+            fi
+            
+            # 复制新文件
+            echo "📝 复制 hooks.c 到内核源码目录..."
+            cp "$HOOKS_SOURCE" "$HOOKS_TARGET"
+            
+            if [ $? -eq 0 ]; then
+              echo "✅ hooks.c 替换成功!"
+              echo "📊 文件信息:"
+              echo "  源文件: $HOOKS_SOURCE ($(wc -c < $HOOKS_SOURCE) bytes)"
+              echo "  目标文件: $HOOKS_TARGET ($(wc -c < $HOOKS_TARGET) bytes)"
+              
+              # 验证替换是否成功
+              if grep -q "selinux_fake_enforcing" "$HOOKS_TARGET"; then
+                echo "✅ 验证成功: 目标文件中包含 selinux_fake_enforcing"
+                echo "📋 相关代码行:"
+                grep -n "selinux_fake_enforcing\|fake_show\|fake_store" "$HOOKS_TARGET" | head -10 || echo "未找到匹配行"
+              else
+                echo "⚠️ 警告: 替换后的文件中未找到 selinux_fake_enforcing"
+                echo "   可能文件内容不完整，请检查"
+              fi
             else
-              echo "❌ 验证失败: 未在 hooks.c 中找到 SELinux fake 相关代码"
-              echo "工作流将停止"
+              echo "❌ 错误: 文件复制失败"
               exit 1
             fi
           else
-            echo "❌ 错误: 未找到 SELinux 补丁文件: $SELINUX_PATCH"
-            echo "📁 请确保补丁 'selinux.patch' 存在于 'sysfs' 目录中"
+            echo "❌ 错误: 未找到 hooks.c 源文件: $HOOKS_SOURCE"
             echo "📋 当前 sysfs 目录内容:"
             ls -la sysfs/ 2>/dev/null || echo "目录不存在"
+            echo ""
+            echo "💡 请确保 sysfs 仓库克隆后包含了 hooks.c 文件"
             exit 1
           fi
           
