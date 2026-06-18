@@ -216,7 +216,6 @@ jobs:
           else
             echo "⚠️ 未找到ccache命令，跳过初始化"
           fi
-          # 显示缓存统计
           ccache -s
           echo "✅ ccache初始化流程完成"
 
@@ -241,7 +240,6 @@ jobs:
           rm kernel_platform/common/android/abi_gki_protected_exports_* || echo "No protected exports!"
           rm kernel_platform/msm-kernel/android/abi_gki_protected_exports_* || echo "No protected exports!"
 
-          # Remove -dirty in kernel version
           sed -i 's/ -dirty//g' kernel_platform/common/scripts/setlocalversion
           sed -i 's/ -dirty//g' kernel_platform/msm-kernel/scripts/setlocalversion
           sed -i 's/ -dirty//g' kernel_platform/external/dtc/scripts/setlocalversion
@@ -292,7 +290,6 @@ jobs:
           fi
           
           if [ "${{ github.event.inputs.lz4kd }}" == "On" ]; then
-            # Copy lz4k from ShirkNeko
             cp -r ../SukiSU_patch/other/zram/lz4k/include/linux/* ./common/include/linux
             cp -r ../SukiSU_patch/other/zram/lz4k/lib/* ./common/lib
             cp -r ../SukiSU_patch/other/zram/lz4k/crypto/* ./common/crypto
@@ -415,11 +412,9 @@ jobs:
             
             cd kernel_platform/common
             
-            # 检查补丁是否已经应用
             if grep -q "selinux_fake_enforcing" security/selinux/hooks.c 2>/dev/null; then
               echo "ℹ️ SELinux fake 补丁已应用，跳过"
             else
-              # 先尝试使用 patch 命令
               if patch -p1 -F 3 < "../../$SELINUX_PATCH" 2>/dev/null; then
                 echo "✅ SELinux fake 补丁应用成功 (patch方式)"
               else
@@ -430,7 +425,6 @@ jobs:
                   echo "❌ SELinux fake 补丁应用失败"
                   echo "📋 尝试手动应用补丁..."
                   
-                  # 手动检查补丁内容
                   if [ -f "../../$SELINUX_PATCH" ]; then
                     echo "📄 补丁内容预览:"
                     head -n 20 "../../$SELINUX_PATCH"
@@ -467,27 +461,30 @@ jobs:
           cd kernel_workspace/kernel_platform/common
           HOOKS="security/selinux/hooks.c"
           
-          # 检查 fs_initcall 是否已存在
           if grep -q "fs_initcall(selinux_create_fake_sysfs)" "$HOOKS"; then
             echo "✅ fs_initcall 已存在"
           else
-            # 在 selinux_complete_init 函数后面添加
-            sed -i '/^void selinux_complete_init(void)/,/^}/ {
-              /^}/ a\
+            sed -i '/^void selinux_complete_init(void)/,/^}$/ {
+              /^}$/ a\
 \
 fs_initcall(selinux_create_fake_sysfs);
             }' "$HOOKS"
             
-            # 如果上面的 sed 没生效，直接在文件末尾添加
+            if ! grep -q "fs_initcall(selinux_create_fake_sysfs)" "$HOOKS"; then
+              sed -i '/^\/\* SELinux requires early initialization \*\// i\
+fs_initcall(selinux_create_fake_sysfs);
+' "$HOOKS"
+            fi
+            
             if ! grep -q "fs_initcall(selinux_create_fake_sysfs)" "$HOOKS"; then
               echo "" >> "$HOOKS"
               echo "fs_initcall(selinux_create_fake_sysfs);" >> "$HOOKS"
             fi
           fi
           
-          # 验证
           if grep -q "fs_initcall(selinux_create_fake_sysfs)" "$HOOKS"; then
             echo "✅ fs_initcall 添加成功"
+            grep -n "fs_initcall(selinux_create_fake_sysfs)" "$HOOKS"
           else
             echo "❌ fs_initcall 添加失败"
             exit 1
@@ -591,7 +588,6 @@ fs_initcall(selinux_create_fake_sysfs);
             grep -q '^CONFIG_LTO_CLANG_THIN=y' "$DEFCONFIG" || echo 'CONFIG_LTO_CLANG_THIN=y' >> "$DEFCONFIG"
           fi
 
-          # 跳过将uapi标准头安装到 usr/include 目录的不必要操作，节省编译时间
           echo "CONFIG_HEADERS_INSTALL=n" >> ./common/arch/arm64/configs/gki_defconfig
 
           echo "⚡ Remove check_defconfig"
@@ -643,7 +639,6 @@ fs_initcall(selinux_create_fake_sysfs);
         run: |
           echo "🔍 验证 SELinux 补丁是否被编译进内核..."
           
-          # 检查 vmlinux 中是否包含相关符号
           VMLINUX=$(find ./kernel_workspace/kernel_platform/common/out -name "vmlinux" | head -n 1)
           if [ -f "$VMLINUX" ]; then
             echo "📄 检查 vmlinux 中的 SELinux fake 符号..."
@@ -662,7 +657,6 @@ fs_initcall(selinux_create_fake_sysfs);
             echo "⚠️ 未找到 vmlinux 文件"
           fi
           
-          # 检查编译日志
           echo "📋 检查编译日志中是否有相关警告..."
           if [ -f "./kernel_workspace/kernel_platform/common/out/build.log" ]; then
             grep -i "selinux.*fake\|selinux_fake" ./kernel_workspace/kernel_platform/common/out/build.log || echo "编译日志中无相关输出"
