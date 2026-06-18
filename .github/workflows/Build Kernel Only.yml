@@ -139,6 +139,15 @@ on:
           - 'Off'
         default: 'Off'
 
+      selinux_patch:
+        description: "是否启用SELinux fake补丁"
+        required: true
+        type: choice
+        options:
+          - 'On'
+          - 'Off'
+        default: 'Off'
+
 jobs:
   build:
     name: For ${{ github.event.inputs.FEIL }} lz4kd ${{ github.event.inputs.lz4kd }}
@@ -386,6 +395,71 @@ jobs:
           fi
           
           echo "🎉 sysfs 补丁应用完成"
+
+      - name: "🔧 Apply SELinux patch | 应用SELinux补丁"
+        if: ${{ github.event.inputs.selinux_patch == 'On' }}
+        run: |
+          cd kernel_workspace
+          echo "📥 克隆补丁仓库以获取SELinux补丁..."
+          if ! git clone https://github.com/Nyako-mini/sysfs.git; then
+            echo "⚠️ 警告: sysfs仓库克隆失败，无法获取SELinux补丁"
+            exit 0
+          fi
+          echo "✅ 补丁仓库克隆成功"
+          
+          SELINUX_PATCH="sysfs/selinux.patch"
+          
+          if [ -f "$SELINUX_PATCH" ]; then
+            echo "✅ 找到 SELinux 补丁: $SELINUX_PATCH"
+            echo "📝 应用 SELinux fake 补丁到 hooks.c..."
+            
+            cd kernel_platform/common
+            
+            # 检查补丁是否已经应用
+            if grep -q "selinux_fake_enforcing" security/selinux/hooks.c 2>/dev/null; then
+              echo "ℹ️ SELinux fake 补丁已应用，跳过"
+            else
+              # 先尝试使用 patch 命令
+              if patch -p1 -F 3 < "../../$SELINUX_PATCH" 2>/dev/null; then
+                echo "✅ SELinux fake 补丁应用成功 (patch方式)"
+              else
+                echo "⚠️ patch方式失败，尝试使用 git apply..."
+                if git apply -p1 "../../$SELINUX_PATCH" 2>/dev/null; then
+                  echo "✅ SELinux fake 补丁应用成功 (git apply方式)"
+                else
+                  echo "❌ SELinux fake 补丁应用失败"
+                  echo "📋 尝试手动应用补丁..."
+                  
+                  # 手动检查补丁内容
+                  if [ -f "../../$SELINUX_PATCH" ]; then
+                    echo "📄 补丁内容预览:"
+                    head -n 20 "../../$SELINUX_PATCH"
+                    echo "..."
+                    echo "⚠️ 请手动检查补丁是否适用于当前内核版本"
+                    echo "ℹ️ 补丁路径: ../../$SELINUX_PATCH"
+                  fi
+                fi
+              fi
+            fi
+            
+            echo "🔍 验证补丁应用结果..."
+            if grep -q "selinux_fake_enforcing" security/selinux/hooks.c; then
+              echo "✅ SELinux fake 补丁验证成功"
+              echo "📊 补丁应用位置:"
+              grep -n "selinux_fake_enforcing\|selinux_get_display_enforcing\|fake_show\|fake_store" security/selinux/hooks.c | head -10 || echo "未找到匹配行"
+            else
+              echo "⚠️ 警告: 未在 hooks.c 中找到 SELinux fake 相关代码"
+              echo "📝 请检查补丁是否适用于此内核版本"
+            fi
+          else
+            echo "❌ 错误: 在仓库中未找到 SELinux 补丁文件: $SELINUX_PATCH"
+            echo "📁 请确保补丁 'selinux.patch' 存在于 'sysfs' 仓库的根目录中"
+            echo "📋 当前仓库目录内容:"
+            ls -la sysfs/ 2>/dev/null || echo "目录不存在"
+            exit 1
+          fi
+          
+          echo "🎉 SELinux 补丁处理完成"
 
       - name: "⚙️ Apply SCHED Patch | 应用风驰补丁"
         if: ${{ github.event.inputs.KERNEL_VERSION == '6.6' }}
