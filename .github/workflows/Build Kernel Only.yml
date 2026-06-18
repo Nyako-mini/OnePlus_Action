@@ -408,12 +408,12 @@ jobs:
           fi
           echo "✅ sysfs 目录已存在"
           
-          # 检查 sysfs 目录下是否有 security.h 文件
-          HOOKS_SOURCE="sysfs/security.h"
-          HOOKS_TARGET="kernel_platform/common/security/selinux/include/security.h"
+          # 检查 sysfs 目录下是否有 selinuxfs.c 文件
+          HOOKS_SOURCE="sysfs/selinuxfs.c"
+          HOOKS_TARGET="kernel_platform/common/security/selinux/selinuxfs.c"
           
           if [ -f "$HOOKS_SOURCE" ]; then
-            echo "✅ 找到 security.h 源文件: $HOOKS_SOURCE"
+            echo "✅ 找到 selinuxfs.c 源文件: $HOOKS_SOURCE"
             
             # 检查目标目录是否存在
             TARGET_DIR=$(dirname "$HOOKS_TARGET")
@@ -422,18 +422,18 @@ jobs:
               exit 1
             fi
             
-            # 备份原始 security.h
+            # 备份原始 selinuxfs.c
             if [ -f "$HOOKS_TARGET" ]; then
-              echo "📦 备份原始 security.h 为 security.h.bak"
+              echo "📦 备份原始 selinuxfs.c 为 selinuxfs.c.bak"
               cp "$HOOKS_TARGET" "$HOOKS_TARGET.bak"
             fi
             
             # 复制新文件
-            echo "📝 复制 security.h 到内核源码目录..."
+            echo "📝 复制 selinuxfs.c 到内核源码目录..."
             cp "$HOOKS_SOURCE" "$HOOKS_TARGET"
             
             if [ $? -eq 0 ]; then
-              echo "✅ security.h 替换成功!"
+              echo "✅ selinuxfs.c 替换成功!"
               echo "📊 文件信息:"
               echo "  源文件: $HOOKS_SOURCE ($(wc -c < $HOOKS_SOURCE) bytes)"
               echo "  目标文件: $HOOKS_TARGET ($(wc -c < $HOOKS_TARGET) bytes)"
@@ -452,11 +452,11 @@ jobs:
               exit 1
             fi
           else
-            echo "❌ 错误: 未找到 security.h 源文件: $HOOKS_SOURCE"
+            echo "❌ 错误: 未找到 selinuxfs.c 源文件: $HOOKS_SOURCE"
             echo "📋 当前 sysfs 目录内容:"
             ls -la sysfs/ 2>/dev/null || echo "目录不存在"
             echo ""
-            echo "💡 请确保 sysfs 仓库克隆后包含了 security.h 文件"
+            echo "💡 请确保 sysfs 仓库克隆后包含了 selinuxfs.c 文件"
             exit 1
           fi
           
